@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>The System</title>
+
+  <style>
+    :root{
+      --bg:#0b0f14;
+      --panel:#0f1620;
+      --text:#e6eef7;
+      --muted:rgba(230,238,247,.75);
+      --line:rgba(255,255,255,.12);
+      --accent:#1f6feb;
+      --danger:#ff6b6b;
+    }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    }
+    main{
+      padding:20px;
+      max-width:920px;
+      margin:0 auto;
+    }
+    h1{
+      margin:0;
+      font-size:22px;
+      letter-spacing:.14em;
+    }
+    .sub{
+      margin-top:8px;
+      color:var(--muted);
+      font-size:13px;
+    }
+    .card{
+      margin-top:16px;
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:14px;
+    }
+    .row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .pill{
+      font-size:12px;
+      padding:6px 10px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      color:var(--muted);
+    }
+    .btn{
+      cursor:pointer;
+      border-radius:12px;
+      padding:10px 12px;
+      border:1px solid var(--line);
+      background:transparent;
+      color:var(--text);
+      font-weight:600;
+    }
+    .btn.primary{
+      background:var(--accent);
+      border-color:transparent;
+    }
+    .btn.danger{
+      border-color:rgba(255,107,107,.45);
+      color:var(--danger);
+    }
+    .mono{
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+    }
+
+    /* SYSTEM MODAL */
+    #systemModal{
+      position:fixed;
+      inset:0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      background:rgba(0,0,0,.78);
+      z-index:9999;
+    }
+    #systemModal .box{
+      width:min(560px,92vw);
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:16px;
+      box-shadow:0 24px 70px rgba(0,0,0,.65);
+    }
+    #systemModal .top{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+    }
+    #systemModal .tag{
+      letter-spacing:.22em;
+      font-size:12px;
+      color:var(--muted);
+    }
+    #systemModal .title{
+      font-size:18px;
+      font-weight:800;
+      margin-top:4px;
+    }
+    #systemModal .body{
+      margin-top:12px;
+      line-height:1.5;
+      font-size:14px;
+      white-space:pre-wrap;
+    }
+    #systemModal .foot{
+      margin-top:10px;
+      font-size:12px;
+      color:var(--muted);
+    }
+    #systemModal .actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:14px;
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <h1>THE SYSTEM</h1>
+    <div class="sub">Authority: App · Mode: Solo · AI: Enabled</div>
+
+    <div class="card">
+      <div class="row">
+        <div class="pill">Work: <span class="mono">06:00–14:00</span></div>
+        <div class="pill">Escalation: <span class="mono">Start + Escalate</span></div>
+        <div class="pill">Voice: <span class="mono">Female</span></div>
+      </div>
+
+      <div class="row" style="margin-top:12px;">
+        <button class="btn" id="btnStatus">Show Status</button>
+        <button class="btn primary" id="btnGenerate">Generate AI Task Now</button>
+        <button class="btn danger" id="btnReset">Reset Today</button>
+      </div>
+
+      <div class="sub" id="statusLine" style="margin-top:10px;"></div>
+    </div>
+  </main>
+
+  <!-- SYSTEM MODAL -->
+  <div id="systemModal">
+    <div class="box">
+      <div class="top">
+        <div>
+          <div class="tag">SYSTEM</div>
+          <div class="title" id="mTitle">Commitment Window</div>
+        </div>
+        <button class="btn" id="mClose">Close</button>
+      </div>
+
+      <div class="body" id="mBody"></div>
+      <div class="foot" id="mFoot"></div>
+
+      <div class="actions">
+        <button class="btn primary" id="mComplete">Complete</button>
+        <button class="btn" id="mSnooze">Snooze 15m</button>
+        <button class="btn danger" id="mCant">Cannot</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ============================
+   PLAYER (AUTHORITATIVE STATE)
+   ============================ */
+const DEFAULT_PLAYER = {
+  heightInches:69,
+  weightLbs:120,
+  targetMin:150,
+  targetMax:160,
+  trainingLevel:1,
+  nutritionLevel:1,
+  consistency:0,
+  fatigue:0,
+  last:{ eat:null, train:null }
+};
+
+function loadPlayer(){
+  return JSON.parse(localStorage.getItem("PLAYER") || JSON.stringify(DEFAULT_PLAYER));
+}
+function savePlayer(p){
+  localStorage.setItem("PLAYER", JSON.stringify(p));
+}
+
+/* ============================
+   SYSTEM STATE
+   ============================ */
+function today(){
+  const d=new Date();
+  return d.toISOString().split("T")[0];
+}
+function loadState(){
+  return JSON.parse(localStorage.getItem("STATE") || '{"days":{}}');
+}
+function saveState(s){
+  localStorage.setItem("STATE", JSON.stringify(s));
+}
+function dayState(s){
+  s.days[today()] ||= { done:{}, escalated:false };
+  return s.days[today()];
+}
+
+/* ============================
+   MODAL CONTROL
+   ============================ */
+const modal=document.getElementById("systemModal");
+const mTitle=document.getElementById("mTitle");
+const mBody=document.getElementById("mBody");
+const mFoot=document.getElementById("mFoot");
+
+document.getElementById("mClose").onclick=()=>modal.style.display="none";
+document.getElementById("mComplete").onclick=()=>modal.style.display="none";
+document.getElementById("mSnooze").onclick=()=>modal.style.display="none";
+document.getElementById("mCant").onclick=()=>modal.style.display="none";
+
+function showModal(title,body,foot){
+  mTitle.textContent=title;
+  mBody.textContent=body;
+  mFoot.textContent=foot;
+  modal.style.display="flex";
+}
+
+/* ============================
+   VOICE (BEST EFFORT)
+   ============================ */
+function speak(text){
+  if(!("speechSynthesis" in window)) return;
+  const u=new SpeechSynthesisUtterance(text);
+  u.rate=0.95;
+  u.pitch=1.0;
+  speechSynthesis.cancel();
+  speechSynthesis.speak(u);
+}
+
+/* ============================
+   AI CALL
+   ============================ */
+async function generateAITask(){
+  const player=loadPlayer();
+  const res=await fetch("/.netlify/functions/ai-task",{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({
+      domain:"EAT",
+      environment:"HOME",
+      player,
+      severity:1,
+      tone:"firm-feminine"
+    })
+  });
+  if(!res.ok){
+    throw new Error("AI unavailable");
+  }
+  return await res.json();
+}
+
+/* ============================
+   BUTTONS
+   ============================ */
+document.getElementById("btnGenerate").onclick=async()=>{
+  try{
+    const out=await generateAITask();
+    showModal(
+      "AI Task",
+      out.task || JSON.stringify(out),
+      "Complete the commitment."
+    );
+    speak("A new commitment has been issued.");
+  }catch(e){
+    showModal(
+      "System Error",
+      "AI task generation failed.\n\nConfirm Netlify Functions + API key.",
+      "No escalation applied."
+    );
+  }
+};
+
+document.getElementById("btnStatus").onclick=()=>{
+  const p=loadPlayer();
+  document.getElementById("statusLine").textContent =
+    `Weight: ${p.weightLbs} · Target: ${p.targetMin}-${p.targetMax} · Consistency: ${p.consistency}`;
+};
+
+document.getElementById("btnReset").onclick=()=>{
+  const s=loadState();
+  delete s.days[today()];
+  saveState(s);
+  document.getElementById("statusLine").textContent="Today reset.";
+};
+
+/* ============================
+   BOOT
+   ============================ */
+window.onload=()=>{
+  if(!localStorage.getItem("PLAYER")) savePlayer(loadPlayer());
+};
+</script>
+</body>
+</html>
